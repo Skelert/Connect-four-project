@@ -5,102 +5,90 @@ class Drop extends Board {
 
     public function __construct($rows = 6, $cols = 6) {
         parent::__construct($rows, $cols);
-        $this->_setCurrentPlayer(rand(1, 2));
     }
 
-    public function startGame() {
-        $this->_dropPiece();
-    }
-
-    protected function _dropPiece() {
-        if ($this->_moves >= ($this->getRows() * $this->getColumns())) {
-            $this->_showNoWinnerMessage();
-            return;
+    public function dropPiece($col) {
+        $currentBoard = $this->_getCurrentBoard();
+    
+        if ($col < 0 || $col >= $this->getColumns()) {
+            echo "<p>Invalid column selection!</p>";
+            return -1;
         }
-
-        $_target_col = rand(0, $this->getColumns() - 1);
-        $_current_board = $this->_getCurrentBoard();
-
+    
         for ($row = $this->getRows() - 1; $row >= 0; $row--) {
-            if ($_current_board[$row][$_target_col] === -1) {
-                $_current_board[$row][$_target_col] = $this->_getCurrentPlayer();
+            if ($currentBoard[$row][$col] === -1) {
+                $currentBoard[$row][$col] = $this->_getCurrentPlayer();
+                $this->_setCurrentBoard($currentBoard);
+                $_SESSION['game_board'] = $currentBoard; // Save board state
+                $_SESSION['current_player'] = $this->_getCurrentPlayer(); // Save turn
                 $this->_moves++;
-                $this->_setCurrentBoard($_current_board);
-                $this->_printBoard();
-
-                if ($this->_checkForWinner($row, $_target_col)) {
-                    $this->_showWinnerMessage();
-                    return;
-                } else {
-                    $this->_togglePlayer();
-                    $this->_dropPiece();
-                }
-                return;
+                return $row;
             }
         }
+    
+        echo "<p>Column $col is full. Pick another column.</p>";
+        return -1;
+    }
+    
+    
 
-        $this->_dropPiece();
+    public function checkForWinner($row, $col) {
+        return $this->_horizontalCheck($row, $col) ||
+               $this->_verticalCheck($row, $col) ||
+               $this->_diagonalCheck($row, $col);
     }
 
-    protected function _togglePlayer() {
+    protected function _horizontalCheck($row, $col) {
+        $grid = $this->_getCurrentBoard();
+        $player = $grid[$row][$col];
+        $count = 1;
+
+        for ($i = $col - 1; $i >= 0 && $grid[$row][$i] === $player; $i--) $count++;
+        for ($i = $col + 1; $i < $this->getColumns() && $grid[$row][$i] === $player; $i++) $count++;
+
+        return $count >= 4;
+    }
+
+    protected function _verticalCheck($row, $col) {
+        $grid = $this->_getCurrentBoard();
+        $player = $grid[$row][$col];
+
+        if ($row > $this->getRows() - 4) return false;
+
+        return ($grid[$row+1][$col] === $player &&
+                $grid[$row+2][$col] === $player &&
+                $grid[$row+3][$col] === $player);
+    }
+
+    protected function _diagonalCheck($row, $col) {
+        return $this->_diagonalCheckLeft($row, $col) || 
+               $this->_diagonalCheckRight($row, $col);
+    }
+
+    protected function _diagonalCheckLeft($row, $col) {
+        $grid = $this->_getCurrentBoard();
+        $player = $grid[$row][$col];
+
+        $count = 1;
+        for ($i = 1; $row - $i >= 0 && $col - $i >= 0 && $grid[$row - $i][$col - $i] === $player; $i++) $count++;
+        for ($i = 1; $row + $i < $this->getRows() && $col + $i < $this->getColumns() && $grid[$row + $i][$col + $i] === $player; $i++) $count++;
+
+        return $count >= 4;
+    }
+
+    protected function _diagonalCheckRight($row, $col) {
+        $grid = $this->_getCurrentBoard();
+        $player = $grid[$row][$col];
+
+        $count = 1;
+        for ($i = 1; $row - $i >= 0 && $col + $i < $this->getColumns() && $grid[$row - $i][$col + $i] === $player; $i++) $count++;
+        for ($i = 1; $row + $i < $this->getRows() && $col - $i >= 0 && $grid[$row + $i][$col - $i] === $player; $i++) $count++;
+
+        return $count >= 4;
+    }
+    public function togglePlayer() {
         $this->_setCurrentPlayer($this->_getCurrentPlayer() === 1 ? 2 : 1);
     }
-
-    /**
-     * Check for winner by validating horizontal and vertical connections
-     */
-    protected function _checkForWinner($row, $col) {
-        return $this->_horizontalCheck($row, $col) || $this->_verticalCheck($row, $col);
-    }
-
-    /**
-     * Check for a horizontal winning condition
-     */
-    private function _horizontalCheck($row, $col) {
-        $_board_array = $this->_getCurrentBoard();
-        $_player = $_board_array[$row][$col];
-        $_count = 0;
-
-        // Count towards the left
-        for ($i = $col; $i >= 0; $i--) {
-            if ($_board_array[$row][$i] !== $_player) {
-                break;
-            }
-            $_count++;
-        }
-
-        // Count towards the right
-        for ($i = $col + 1; $i < $this->getColumns(); $i++) {
-            if ($_board_array[$row][$i] !== $_player) {
-                break;
-            }
-            $_count++;
-        }
-
-        return $_count >= 4;
-    }
-
-    /**
-     * Check for a vertical winning condition
-     */
-    private function _verticalCheck($row, $col) {
-        // If the piece is too close to the top, vertical win is not possible
-        if ($row >= $this->getRows() - 3) {
-            return false;
-        }
-
-        $_board_array = $this->_getCurrentBoard();
-        $_player = $_board_array[$row][$col];
-
-        // Check the three rows below
-        for ($i = $row + 1; $i <= $row + 3; $i++) {
-            if ($_board_array[$i][$col] !== $_player) {
-                return false;
-            }
-        }
-
-        return true;
-    }
+    
 }
-
 ?>
