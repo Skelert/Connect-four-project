@@ -102,35 +102,41 @@ function check($turn){
     return array();
 }
 
-function checkNeighboor($turn, $x, $y, $dir, $counter, $purpose){
-    if($counter==4 || $x==-1 || $y==-1 || $x==7 || $y==6){
+function checkNeighboor($turn, $x, $y, $dir, $counter, $purpose)
+{
+    global $board;
+    $width = count($board[0]);
+    $height = count($board);
+    
+    if ($counter == 4) {
         return $counter;
     }
-    global $board;
-
-    if(($purpose=="block" || $purpose=="win" ) && $counter==3){
-            $turn=0;
+    
+    // Apply wraparound for horizontal and vertical directions
+    if ($x < 0) {
+        $x = $width - 1; // Wrap around to the right
+    } else if ($x >= $width) {
+        $x = 0; // Wrap around to the left
     }
-    if($board[$y][$x]==$turn){
-        if($dir=="UL"){
-            return checkNeighboor($turn, $x-1, $y-1, $dir, $counter+1, $purpose);
-        } else if($dir=="U"){
-            return checkNeighboor($turn, $x, $y-1, $dir, $counter+1, $purpose);
-        } else if($dir=="UR"){
-            return checkNeighboor($turn, $x+1, $y-1, $dir, $counter+1, $purpose);
-        } else if($dir=="R"){
-            return checkNeighboor($turn, $x+1, $y, $dir, $counter+1, $purpose);
-        } else if($dir=="L"){
-            return checkNeighboor($turn, $x-1, $y, $dir, $counter+1, $purpose);
-        } else if($dir=="DR"){
-            return checkNeighboor($turn, $x+1, $y+1, $dir, $counter+1, $purpose);
-        } else if($dir=="DL"){
-            return checkNeighboor($turn, $x-1, $y+1, $dir, $counter+1, $purpose);
+    if ($y < 0) {
+        $y = $height - 1; // Wrap around to the bottom
+    } else if ($y >= $height) {
+        $y = 0; // Wrap around to the top
+    }
+    
+    if ($board[$y][$x] == $turn) {
+        if ($dir == "R") {
+            return checkNeighboor($turn, $x + 1, $y, $dir, $counter + 1, $purpose);
+        } else if ($dir == "L") {
+            return checkNeighboor($turn, $x - 1, $y, $dir, $counter + 1, $purpose);
+        } else if ($dir == "U") {
+            return checkNeighboor($turn, $x, $y - 1, $dir, $counter + 1, $purpose);
+        } else if ($dir == "D") {
+            return checkNeighboor($turn, $x, $y + 1, $dir, $counter + 1, $purpose);
         }
     }
     return $counter;
 }
-
 // Artificial Intelligence Bot
 function counterAction(){
     global $board;
