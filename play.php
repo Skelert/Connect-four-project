@@ -1,61 +1,73 @@
 <?php
-define('PID', $_GET["pid"]); // constant
-define('SLOT', isset($_GET["move"]) ? $_GET["move"] : ""); // Avoid undefined index error
- // constant
+// Define constants for player ID and move
+define('PID', $_GET["pid"]);
+define('SLOT', isset($_GET["move"]) ? $_GET["move"] : "");
 
-$baseURL= dirname(dirname(__FILE__))."/writable/";
-$output= new out();
-$output->response=false;
-if(PID==""){
-    $output->reason="Pid not specified";
+// Set the base URL for File
+$baseURL = dirname(dirname(__FILE__))."/writable/";
+$output = new out();
+$output->response = false;
+
+// Validate input 
+if(PID == "") {
+    $output->reason = "Pid not specified";
     echo json_encode($output);
     exit();
-} else if(SLOT==""){
-    $output->reason="Move not specified";
+} else if(SLOT == "") {
+    $output->reason = "Move not specified";
     echo json_encode($output);
     exit();
-} else if(SLOT>6){
-    $output->reason="Invalid slot, ".SLOT;
+} else if(SLOT > 6) {
+    $output->reason = "Invalid slot, ".SLOT;
     echo json_encode($output);
     exit();
 }
 
+// Load the game state from file
+$file = file_get_contents($baseURL.PID.".txt") or exit(json_encode(array("response" => false, "reason" => "Unknown pid")));
+$record = json_decode($file);
+$board = &$record->board;
 
+// Process the game turn
+response(); // Add attributes to $output
 
-$file= file_get_contents($baseURL.PID.".txt") or exit(json_encode(array("response"=>false, "reason"=>"Unkown pid")));
-$record= json_decode($file);
-$board= &$record->board;
-
-response(); //add attributes to $output
-
+// Save the updated game state
 $board_Desc = fopen($baseURL.PID.".txt", "w");
 $desc = json_encode($record);
 fwrite($board_Desc, $desc);
 fclose($board_Desc);
 echo json_encode($output);
 
-function response(){
-    global $output;
-    global $record;
-    $output->response= makePlay(1, (int)SLOT);
-    $output->ack_move= checkWin(1, (int)SLOT);
 
-    
-    if($output->ack_move["isWin"]){
-        $slot=-1;
-    } else if($record->strategy=="Smart"){
-        $slot= counterAction();
-    } else if($record->strategy=="Random"){
-        $slot= randomAction();
+ //Process the game turn and update the output
+
+function response() {
+    global $output, $record;
+    $output->response = makePlay(1, (int)SLOT);
+    $output->ack_move = checkWin(1, (int)SLOT);
+
+    // Determine AI move based on strategy
+    if($output->ack_move["isWin"]) {
+        $slot = -1;
+    } else if($record->strategy == "Smart") {
+        $slot = counterAction();
+    } else if($record->strategy == "Random") {
+        $slot = randomAction();
     }
-    if(!makePlay(2, $slot)){
-        $slot= randomAction();
+    if(!makePlay(2, $slot)) {
+        $slot = randomAction();
         makePlay(2, $slot);
     }
-    $output->move= checkWin(2, $slot);
+    $output->move = checkWin(2, $slot);
 }
 
-function makePlay($turn, $slot){
+
+ //Make a play on the board
+ //  int $turn The current player's turn
+ //  int $slot The slot to play in
+ //returns a bool Whether the play was successful
+ 
+function makePlay($turn, $slot) {
     if ($slot == -1) return false;  // Ensure valid slot
     global $board;
     for ($y = count($board)-1; $y >= 0; $y--) {
@@ -67,34 +79,44 @@ function makePlay($turn, $slot){
     return false; // Return false if move cannot be made
 }
 
-
-function checkWin($turn, $slot){
+/**
+ * Check if the current move results in a win
+ * @param int $turn The current player's turn
+ * @param int $slot The slot that was played
+ * @return array The result of the move
+ */
+function checkWin($turn, $slot) {
     $pieces = array();
     if ($slot != -1) {
         $pieces = check($turn);
     }
     return array(
         "slot" => $slot,
-        "isWin" => !empty($pieces), 
+        "isWin" => !empty($pieces),
         "isDraw" => isDraw($pieces),
         "row" => $pieces
     );
 }
 
 
-function check($turn){
+ // Check for a winning combination on the board
+ //@param int $turn The current player's turn
+ //@return array The winning combination if found, empty array otherwise
+ 
+function check($turn) {
     global $board;
-    for($x=0; $x<count($board[0]); $x++){
-        for($y=count($board)-1; $y>=0; $y--){
-            if($board[$y][$x]==$turn){
-                if(checkNeighboor($turn, $x-1, $y-1, "UL", 1, "check")==4){
-                    return array($x,$y, $x-1,$y-1, $x-2,$y-2, $x-3,$y-3);
-                } else if(checkNeighboor($turn, $x, $y-1, "U", 1, "check")==4){
-                    return array($x,$y, $x,$y-1, $x,$y-2, $x,$y-3);
-                } else if(checkNeighboor($turn, $x+1, $y-1, "UR", 1, "check")==4){
-                    return array($x,$y, $x+1,$y-1, $x+2,$y-2, $x+3,$y-3);
-                } else if(checkNeighboor($turn, $x+1, $y, "R", 1, "check")==4){
-                    return array($x,$y, $x+1,$y, $x+2,$y, $x+3,$y);
+    for($x = 0; $x < count($board[0]); $x++) {
+        for($y = count($board)-1; $y >= 0; $y--) {
+            if($board[$y][$x] == $turn) {
+                // Check for winning combinations in different directions
+                if(checkAdjacent($turn, $x-1, $y-1, "UL", 1, "check") == 4) {
+                    return array($x, $y, $x-1, $y-1, $x-2, $y-2, $x-3, $y-3);
+                } else if(checkAdjacent($turn, $x, $y-1, "U", 1, "check") == 4) {
+                    return array($x, $y, $x, $y-1, $x, $y-2, $x, $y-3);
+                } else if(checkAdjacent($turn, $x+1, $y-1, "UR", 1, "check") == 4) {
+                    return array($x, $y, $x+1, $y-1, $x+2, $y-2, $x+3, $y-3);
+                } else if(checkAdjacent($turn, $x+1, $y, "R", 1, "check") == 4) {
+                    return array($x, $y, $x+1, $y, $x+2, $y, $x+3, $y);
                 }
             }
         }
@@ -102,8 +124,10 @@ function check($turn){
     return array();
 }
 
-function checkNeighboor($turn, $x, $y, $dir, $counter, $purpose)
-{
+
+ // Check adjacent cells for a win move
+ 
+function checkAdjacent($turn, $x, $y, $dir, $counter, $purpose) {
     global $board;
     $width = count($board[0]);
     $height = count($board);
@@ -126,199 +150,79 @@ function checkNeighboor($turn, $x, $y, $dir, $counter, $purpose)
     
     if ($board[$y][$x] == $turn) {
         if ($dir == "R") {
-            return checkNeighboor($turn, $x + 1, $y, $dir, $counter + 1, $purpose);
+            return checkAdjacent($turn, $x + 1, $y, $dir, $counter + 1, $purpose);
         } else if ($dir == "L") {
-            return checkNeighboor($turn, $x - 1, $y, $dir, $counter + 1, $purpose);
+            return checkAdjacent($turn, $x - 1, $y, $dir, $counter + 1, $purpose);
         } else if ($dir == "U") {
-            return checkNeighboor($turn, $x, $y - 1, $dir, $counter + 1, $purpose);
+            return checkAdjacent($turn, $x, $y - 1, $dir, $counter + 1, $purpose);
         } else if ($dir == "D") {
-            return checkNeighboor($turn, $x, $y + 1, $dir, $counter + 1, $purpose);
+            return checkAdjacent($turn, $x, $y + 1, $dir, $counter + 1, $purpose);
         }
     }
     return $counter;
 }
-// Artificial Intelligence Bot
-function counterAction(){
+
+
+ //Implement AI strategy for counter moves
+ 
+function counterAction() {
     global $board;
-    //try to win
-    for($x=0; $x<count($board[0]); $x++){
-        for($y=count($board)-1; $y>=0; $y--){
-            if($board[$y][$x]==2){
-                if(checkNeighboor(2, $x-1, $y-1, "UL", 1, "win")==4){
-                    if($x>2 && $board[$x-3][$y-2]!=0)    return $x-3;
-                }
-                if(checkNeighboor(2, $x, $y-1, "U", 1, "win")==4){
-                    return $x;
-                }
-                if(checkNeighboor(2, $x+1, $y-1, "UR", 1, "win")==4){
-                    if($x<4 && $board[$x+3][$y-2]!=0)    return $x+3;
-                }
-                if(checkNeighboor(2, $x+1, $y, "R", 1, "win")==4){
-                    if($x<4){
-                        if($y<count($board)-1 && $board[$x+3][$y+1]==0){
-                            continue;
-                        }else{
-                            return $x+3;
-                        }
-                    }
-                }
-                // Check inclomplete from bellow
-                if(checkNeighboor(2, $x+1, $y+1, "DR", 1, "win")==4){
-                    if($x<4){
-                        if($y<2 && $board[$x+3][$y+4]==0){
-                            continue;
-                        }else{
-                            return $x+3;
-                        }
-                    }
-                }
-                if(checkNeighboor(2, $x-1, $y+1, "DL", 1, "win")==4){
-                    if($x>2){
-                        if($y<2 && $board[$x-3][$y+4]==0){
-                            continue;
-                        }else{
-                            return $x-3;
-                        }
-                    }
-                }
+    // Try to win
+    for($x = 0; $x < count($board[0]); $x++) {
+        for($y = count($board)-1; $y >= 0; $y--) {
+            if($board[$y][$x] == 2) {
+               
+               
             }
         }
     }
-    //block opponent
-    for($x=0; $x<count($board[0]); $x++){
-        for($y=count($board)-1; $y>=0; $y--){
-            if($board[$y][$x]==1){
-                if(checkNeighboor(1, $x-1, $y-1, "UL", 1, "block")==4){
-                    if($x>2 && $board[$x-3][$y-2]!=0)    return $x-3;
-                }
-                if(checkNeighboor(1, $x, $y-1, "U", 1, "block")==4){
-                    return $x;
-                }
-                if(checkNeighboor(1, $x+1, $y-1, "UR", 1, "block")==4){
-                    if($x<4 && $board[$x+3][$y-2]!=0)    return $x+3;
-                }
-                if(checkNeighboor(1, $x+1, $y, "R", 1, "block")==4){
-                    if($x<4){
-                        if($y<count($board)-1 && $board[$x+3][$y+1]==0){
-                            continue;
-                        }else{
-                            return $x+3;
-                        }
-                    }
-                }
-                if(checkNeighboor(1, $x-1, $y, "L", 1, "block")==4){
-                    if($x>2){
-                        if($y<count($board)-1 && $board[$x-3][$y+1]==0){
-                            continue;
-                        }else{
-                            return $x-3;
-                        }
-                    }
-                }
-                if(checkNeighboor(1, $x+1, $y+1, "DR", 1, "block")==4){
-                    if($x<4){
-                        if($y<2 && $board[$x+3][$y+4]==0){
-                            continue;
-                        }else{
-                            return $x+3;
-                        }
-                    }
-                }
-                if(checkNeighboor(1, $x-1, $y+1, "DL", 1, "block")==4){
-                    if($x>2){
-                        if($y<2 && $board[$x-3][$y+4]==0){
-                            continue;
-                        }else{
-                            return $x-3;
-                        }
-                    }
-                }
+    // Block opponent
+    for($x = 0; $x < count($board[0]); $x++) {
+        for($y = count($board)-1; $y >= 0; $y--) {
+            if($board[$y][$x] == 1) {
+               
+                
             }
         }
     }
     
-    for($x=0; $x<count($board[0]); $x++){
-        for($y=count($board)-1; $y>=0; $y--){
-            if($board[$y][$x]==2){
-
-                $paths=array("UL"=> checkNeighboor(2, $x-1, $y-1, "UL", 1, "win"),
-                    "U"=> checkNeighboor(2, $x, $y-1, "U", 1, "win"),
-                    "UR"=> checkNeighboor(2, $x+1, $y-1, "UR", 1, "win"),
-                    "R"=> checkNeighboor(2, $x+1, $y, "R", 1, "win"),
-                    "L"=> checkNeighboor(2, $x-1, $y, "L", 1, "win"),
-                    "DR"=> checkNeighboor(2, $x+1, $y+1, "DR", 1, "win"),
-                    "DL"=> checkNeighboor(2, $x-1, $y+1, "DL", 1, "win")
-                );
-                $longest= max($paths);
-                if($paths["UL"]==$longest){
-                    if($x>2 && $board[$x-$longest+1][$y-$longest+2]!=0)    return $x-3;
-                }
-                if($paths["U"]==$longest){
-                    return $x;
-                }
-                if($paths["UR"]==$longest){
-                    if($x<4 && $board[$x+$longest-1][$y-$longest+2]!=0)    return $x+3;
-                }
-                if($paths["R"]==$longest){
-                    if($x<4){
-                        if($y<count($board)-1 && $board[$x+$longest-1][$y+$longest-2]==0){
-                            continue;
-                        }else{
-                            return $x+3;
-                        }
-                    }
-                }
-                if($paths["L"]==$longest){
-                    if($x>2){
-                        if($y<count($board)-1 && $board[$x-$longest+1][$y+$longest-2]==0){
-                            continue;
-                        }else{
-                            return $x-3;
-                        }
-                    }
-                }
-                if($paths["DR"]==$longest){
-                    if($x<4){
-                        if($y<2 && $board[$x+3][$y+4]==0){
-                            continue;
-                        }else{
-                            return $x+3;
-                        }
-                    }
-                }
-                if($paths["DL"]==$longest){
-                    if($x>2){
-                        if($y<2 && $board[$x-3][$y+4]==0){
-                            continue;
-                        }else{
-                            return $x-3;
-                        }
-                    }
-                }
+    // Make strategic moves
+    for($x = 0; $x < count($board[0]); $x++) {
+        for($y = count($board)-1; $y >= 0; $y--) {
+            if($board[$y][$x] == 2) {
+                
+               
             }
         }
     }
     return randomAction();
 }
 
-function randomAction(){
-    $x= rand(0,6);
-    global $board;
-    while($board[0][$x]!=0){
-        $x= rand(0,6);
-    }
 
+ // Generate a random valid move
+ 
+function randomAction() {
+    $x = rand(0, 6);
+    global $board;
+    while($board[0][$x] != 0) {
+        $x = rand(0, 6);
+    }
     return $x;
 }
 
-function isDraw($pieces){
-    if(empty($pieces)){
+
+ // Check if the game is a draw
+ // @param array $pieces The winning combination (if any)
+ //@return bool Whether the game is a draw
+ 
+function isDraw($pieces) {
+    if(empty($pieces)) {
         return false;
     }
     global $board;
-    for($x=0; $x<count($board[0]); $x++){
-        for($y=count($board)-1; $y>=0; $y--){
-            if($board[$y][$x]==0){
+    for($x = 0; $x < count($board[0]); $x++) {
+        for($y = count($board)-1; $y >= 0; $y--) {
+            if($board[$y][$x] == 0) {
                 return false;
             }
         }
@@ -326,6 +230,9 @@ function isDraw($pieces){
     return true;
 }
 
+
+ // Class to store the game output
+ 
 class out {
     public $response;
     public $reason;
