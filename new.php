@@ -1,43 +1,68 @@
-<?php // index.php
-//$baseURL = "C:/wamp/www/Programming_Languages_PR1/C4service/writable/";
-$baseURL= dirname(dirname(__FILE__))."/writable/";
+<?php
+// index.php
 
-define('STRATEGY', $_GET["strategy"]); // constant
-$strategies = array("Smart"=>"Smart", "Random"=>"Random"); // supported strategies
-$new_Game= new Game();
 
-if (!array_key_exists(STRATEGY, $strategies)) { 
-    $new_Game->response = false;
-    $new_Game->reason = "strategy unkown";
-} else{
-    $new_Game->response = true;
-    $new_Game->pid = uniqid();
-}
+// Define URL for file operations
+$baseURL = dirname(dirname(__FILE__)) . "/writable/";
 
-$out= json_encode($new_Game);
-echo $out;
+// Define strategies
+$strategies = array("Smart" => "Smart", "Random" => "Random");
 
-$smart_Board= array(
-    array(0,0,0,0,0,0,0),
-    array(0,0,0,0,0,0,0),
-    array(0,0,0,0,0,0,0),
-    array(0,0,0,0,0,0,0),
-    array(0,0,0,0,0,0,0),
-    array(0,0,0,0,0,0,0)
-);
+// Retrieve strategy from GET 
+define('STRATEGY', $_GET["strategy"]);
 
-if($new_Game->response==true){
-    $board_Desc = fopen($baseURL.$new_Game->pid.".txt", "w");
-    $desc = json_encode(array("pid"=>$new_Game->pid,"strategy"=>STRATEGY, "board"=>$smart_Board));
-    fwrite($board_Desc, $desc);
-    fclose($board_Desc);
-}
-
-//class to store necessary varaibles to be added
-class Game{
+//Game class 
+class Game {
     public $response;
     public $pid;
     public $reason;   
 }
-?>
+
+//Initializes Game State 
+function initializeGame() {
+    global $strategies;
+    $new_Game = new Game();
+
+    if (!array_key_exists(STRATEGY, $strategies)) { 
+        $new_Game->response = false;
+        $new_Game->reason = "strategy unknown";
+    } else {
+        $new_Game->response = true;
+        $new_Game->pid = uniqid();
+    }
+
+    return $new_Game;
+}
+
+
+ //Create an empty game board
+ 
+function createEmptyBoard() {
+    return array_fill(0, 6, array_fill(0, 7, 0));
+}
+
+//Save game state to File 
+function saveGameState($game, $board) {
+    global $baseURL;
+    if ($game->response == true) {
+        $board_Desc = fopen($baseURL . $game->pid . ".txt", "w");
+        $desc = json_encode(array(
+            "pid" => $game->pid,
+            "strategy" => STRATEGY,
+            "board" => $board
+        ));
+        fwrite($board_Desc, $desc);
+        fclose($board_Desc);
+    }
+}
+
+// Main execution
+$new_Game = initializeGame();
+$smart_Board = createEmptyBoard();
+
+// Output game initialization result as JSON
+echo json_encode($new_Game);
+
+// Save the game state if initialization was successful
+saveGameState($new_Game, $smart_Board);
 
